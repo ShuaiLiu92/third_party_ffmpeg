@@ -1033,7 +1033,9 @@ static int mov_write_dca3_tag(AVFormatContext *s, AVIOContext *pb, MOVTrack *tra
     number_objects           = AV_RB8(track->par->extradata  + 5);
     hoa_order                = AV_RB8(track->par->extradata  + 6);
     resolution_index         = AV_RB8(track->par->extradata  + 7);
-    bitrate_kbps             = AV_RB16(track->par->extradata + 8);
+    /* extradata is a native-endian (LE) memcpy of Av3aFormatContext, not a
+     * big-endian blob; AV_RB16 byte-swaps the 16-bit bitrate here */
+    bitrate_kbps             = AV_RL16(track->par->extradata + 8);
 
     if (audio_codec_id != AV3A_LOSSY_CODEC_ID) {
         return AVERROR_INVALIDDATA;
@@ -1071,7 +1073,9 @@ static int mov_write_dca3_tag(AVFormatContext *s, AVIOContext *pb, MOVTrack *tra
     }
 
     flush_put_bits(&pb_dca3);
-    avio_write(pb, buffer, sizeof(buffer));
+    /* write only the flushed bytes: the fixed sizeof(buffer) write appended
+     * 1-2 uninitialized stack bytes for non channel+object layouts */
+    avio_write(pb, buffer, put_bytes_count(&pb_dca3, 1));
 
     return update_size(pb, pos);
 }
